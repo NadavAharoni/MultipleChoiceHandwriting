@@ -11,6 +11,9 @@ PAGE_HEIGHT = 3508
 # Debug images
 SAVE_DEBUG_IMAGES = True
 
-# Geometry parameters
-MIN_CONTOUR_AREA = 50000
+# Geometry parameters.  The kernels scale with the scan so the same settings
+# work for images produced at different scanner resolutions.
+HORIZONTAL_KERNEL_DIVISOR = 50
+VERTICAL_KERNEL_DIVISOR = 50
+MIN_LINE_KERNEL_LENGTH = 25
 
