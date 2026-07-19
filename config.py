@@ -17,3 +17,8 @@ HORIZONTAL_KERNEL_DIVISOR = 50
 VERTICAL_KERNEL_DIVISOR = 50
 MIN_LINE_KERNEL_LENGTH = 25
 
+# Normalized answer-table image produced by the table-detection stage.
+TABLE_WIDTH = 1200
+TABLE_HEIGHT = 600
+TABLE_ROW_COUNT = 11
+
