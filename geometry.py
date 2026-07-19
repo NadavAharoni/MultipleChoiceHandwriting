@@ -7,6 +7,7 @@ from config import (
     MIN_LINE_KERNEL_LENGTH,
     SAVE_DEBUG_IMAGES,
     TABLE_HEIGHT,
+    TABLE_ASPECT_RATIO,
     TABLE_ROW_COUNT,
     TABLE_WIDTH,
     VERTICAL_KERNEL_DIVISOR,
@@ -62,6 +63,36 @@ def _run_centers(values: np.ndarray) -> list[float]:
 def _nearest_row(rows: list[float], target: float, tolerance: float) -> float | None:
     candidates = [row for row in rows if abs(row - target) <= tolerance]
     return min(candidates, key=lambda row: abs(row - target), default=None)
+
+
+def _select_table_columns(
+    horizontal_left: int,
+    horizontal_right: int,
+    vertical_columns: list[float],
+    table_height: int,
+) -> tuple[int, int]:
+    """Choose table edges that match the known form's grid and aspect ratio."""
+    candidates = sorted({horizontal_left, horizontal_right, *(round(column) for column in vertical_columns)})
+    selections = []
+    for index, left in enumerate(candidates):
+        for right in candidates[index + 1 :]:
+            ratio = (right - left) / table_height
+            if not 1.7 <= ratio <= 2.5:
+                continue
+            support = sum(left - 3 <= column <= right + 3 for column in vertical_columns)
+            # The actual form has six strong vertical grid lines.  Prefer a
+            # candidate enclosing those lines, then its expected aspect ratio.
+            score = support * 10 - abs(ratio - TABLE_ASPECT_RATIO)
+            selections.append((score, left, right))
+
+    if selections:
+        _, left, right = max(selections)
+        return int(left), int(right)
+
+    # Retain a useful fallback for badly occluded scans, rather than silently
+    # selecting a page border simply because it is the outermost vertical line.
+    expected_width = round(table_height * TABLE_ASPECT_RATIO)
+    return horizontal_left, min(horizontal_right, horizontal_left + expected_width)
 
 
 def find_table_bounds(horizontal: np.ndarray, vertical: np.ndarray) -> tuple[int, int, int, int]:
@@ -122,9 +153,7 @@ def find_table_bounds(horizontal: np.ndarray, vertical: np.ndarray) -> tuple[int
     # source for the true left and right edges.
     column_ink = np.count_nonzero(vertical[top : bottom + 1], axis=0)
     vertical_columns = _run_centers(column_ink >= (bottom - top + 1) * 0.5)
-    if len(vertical_columns) >= 2:
-        left = min(left, int(round(min(vertical_columns))))
-        right = max(right, int(round(max(vertical_columns))))
+    left, right = _select_table_columns(left, right, vertical_columns, bottom - top + 1)
     margin = 3
     return (
         max(0, left - margin),
