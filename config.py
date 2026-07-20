@@ -55,3 +55,33 @@ ROW_GAP_MIN_INK = 15
 CONTACT_SHEET_COLUMNS = 6
 CONTACT_SHEET_THUMB_WIDTH = 320
 
+# Printed-content template: every scan shares the same printed form, so a
+# pixel that is ink in nearly every scan is the printed grid/numbers, not
+# handwriting (which varies scan to scan). Calibrated against the real
+# dataset (see docs/05_handwriting_extraction.md): a pixel's own position
+# jitters a little between scans even after normalization, so ink is first
+# dilated to tolerate that before the frequency vote.
+TEMPLATE_DILATE_PX = 3
+TEMPLATE_FREQUENCY_THRESHOLD = 0.75
+TEMPLATE_PATH = INTERMEDIATE_DIR / "printed_template.png"
+
+# Handwriting extraction: how far a cell's search region extends beyond its
+# own tight bounds to find connected ink components that belong to it but
+# were cropped at the boundary (see cells.py's CELL_INSET / row-boundary
+# logic). Kept deliberately small: cells.py's own row boundaries are already
+# adjusted toward genuine ink gaps (see docs/04b_row_boundary_overflow.md),
+# so this is a secondary safety margin, not the primary defense against
+# clipping. A larger margin was tried and rejected - removing the grid line
+# removes the natural barrier that kept adjacent rows' ink apart, so bigger
+# padding let ordinary bold handwriting in adjacent rows merge into one
+# component far more often than it caught genuine overflow.
+HANDWRITING_ROW_PAD_PX = 8
+HANDWRITING_COLUMN_PAD_PX = 8
+# 4-connectivity (not 8) for the same reason: diagonal-only touches are the
+# easiest way for two unrelated rows' ink to falsely merge.
+HANDWRITING_CONNECTIVITY = 4
+# A kept component taller than this multiple of the nominal row height is
+# flagged as spanning multiple rows - a sign it may not belong entirely to
+# this question.
+HANDWRITING_MULTI_ROW_FLAG_RATIO = 1.3
+

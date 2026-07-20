@@ -138,12 +138,12 @@ Completed:
 - Geometry pipeline.
 - Reliable answer-table localization.
 - Answer cell segmentation (20 cells per scan, see [`04_answer_cell_segmentation.md`](04_answer_cell_segmentation.md), [`04a_full_width_cells.md`](04a_full_width_cells.md), [`04b_row_boundary_overflow.md`](04b_row_boundary_overflow.md)). One scan (`325573509_D3241J`) has handwriting too connected to cleanly split per-row and is flagged for manual review rather than solved automatically.
+- Handwriting extraction: printed grid/numbers removed via a corpus-learned template, with connected-component analysis reattaching ink a cell's tight box would otherwise clip (see [`05_handwriting_extraction.md`](05_handwriting_extraction.md)).
 
 Planned:
 
-1. Extract handwriting.
-2. Recognize Hebrew letters.
-3. Produce structured answers.
-4. Export to Excel.
+1. Recognize Hebrew letters.
+2. Produce structured answers.
+3. Export to Excel.
 
 The final deliverable is a command that processes a folder of scanned exams and generates an Excel spreadsheet containing all detected answers.
