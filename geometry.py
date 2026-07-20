@@ -52,9 +52,23 @@ def extract_grid_lines(threshold: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return horizontal, vertical
 
 
-def _run_centers(values: np.ndarray) -> list[float]:
-    """Return the centres of contiguous true runs in a one-dimensional mask."""
+def _run_centers(values: np.ndarray, bridge_gap: int = 3) -> list[float]:
+    """Return the centres of contiguous true runs in a one-dimensional mask.
+
+    A grid line that is slightly rotated or thinned by morphology can dip
+    below the ink threshold for a pixel or two, splitting one line into two
+    candidates.  Short gaps like that are bridged first so each real grid
+    line yields a single, correctly centred run.
+    """
     padded = np.pad(values.astype(np.int8), (1, 1))
+    starts = np.flatnonzero(np.diff(padded) == 1)
+    ends = np.flatnonzero(np.diff(padded) == -1)
+    bridged = values.copy()
+    for previous_end, next_start in zip(ends[:-1], starts[1:]):
+        if next_start - previous_end <= bridge_gap:
+            bridged[previous_end:next_start] = True
+
+    padded = np.pad(bridged.astype(np.int8), (1, 1))
     starts = np.flatnonzero(np.diff(padded) == 1)
     ends = np.flatnonzero(np.diff(padded) == -1)
     return [float((start + end - 1) / 2) for start, end in zip(starts, ends)]
@@ -95,7 +109,43 @@ def _select_table_columns(
     return horizontal_left, min(horizontal_right, horizontal_left + expected_width)
 
 
-def find_table_bounds(horizontal: np.ndarray, vertical: np.ndarray) -> tuple[int, int, int, int]:
+def _extend_for_ink(
+    threshold: np.ndarray,
+    axis: int,
+    span: tuple[int, int],
+    edge: int,
+    direction: int,
+    max_extend: int,
+    ink_ceiling: int,
+    min_ink: int = 5,
+) -> int:
+    """Push a table edge outward while handwriting ink continues past it.
+
+    Students do not confine their handwriting to the printed grid line, so
+    the strict line-based edge can clip a stroke that overruns it.  This
+    walks outward one pixel at a time and stops as soon as it meets either
+    blank page (no more ink) or something with a printed-line's worth of
+    ink (a real border or unrelated rule), so only genuine handwriting
+    overflow gets included.
+    """
+    lo, hi = span
+    limit = threshold.shape[axis]
+    extended = edge
+    for offset in range(1, max_extend + 1):
+        probe = edge + offset * direction
+        if probe < 0 or probe >= limit:
+            break
+        line = threshold[probe, lo:hi] if axis == 0 else threshold[lo:hi, probe]
+        count = np.count_nonzero(line)
+        if count >= ink_ceiling or count < min_ink:
+            break
+        extended = probe
+    return extended
+
+
+def find_table_bounds(
+    threshold: np.ndarray, horizontal: np.ndarray, vertical: np.ndarray
+) -> tuple[int, int, int, int]:
     """Find the table using its eleven nearly equally spaced horizontal lines."""
     height, width = horizontal.shape
     row_ink = np.count_nonzero(horizontal, axis=1)
@@ -154,6 +204,30 @@ def find_table_bounds(horizontal: np.ndarray, vertical: np.ndarray) -> tuple[int
     column_ink = np.count_nonzero(vertical[top : bottom + 1], axis=0)
     vertical_columns = _run_centers(column_ink >= (bottom - top + 1) * 0.5)
     left, right = _select_table_columns(left, right, vertical_columns, bottom - top + 1)
+
+    # If the selected left edge is a full answer-cell width before the first
+    # detected vertical grid line, it is the left number-column boundary, not
+    # the table edge.  Shift the fixed-width crop left to retain the handwritten
+    # cell; sacrificing a little of the far-right question-number margin is
+    # preferable to clipping handwriting.
+    in_table_columns = [column for column in vertical_columns if left <= column <= right]
+    if in_table_columns:
+        missing_answer_width = int(round(min(in_table_columns))) - left
+        unused_right_margin = right - int(np.median([end for _, end in row_endpoints]))
+        if missing_answer_width > (bottom - top) * 0.3 and unused_right_margin > missing_answer_width:
+            left -= missing_answer_width
+            right -= missing_answer_width
+
+    # Grow top, bottom, and left to include handwriting that overruns the
+    # printed grid line.  The right edge is left alone: it borders the
+    # printed question numbers, and cropping into those is acceptable, but
+    # growing it risks pulling in unrelated page content.
+    row_height = (bottom - top) / (TABLE_ROW_COUNT - 1)
+    line_ceiling = max(120, (right - left) // 2)
+    top = _extend_for_ink(threshold, 0, (left, right), top, -1, round(row_height), line_ceiling)
+    bottom = _extend_for_ink(threshold, 0, (left, right), bottom, 1, round(row_height), line_ceiling)
+    left = _extend_for_ink(threshold, 1, (top, bottom), left, -1, round(row_height), line_ceiling)
+
     margin = 3
     return (
         max(0, left - margin),
@@ -215,7 +289,7 @@ def process_image(image_path, output_dir, intermediate_dir):
     threshold = threshold_image(deskewed)
     horizontal, vertical = extract_grid_lines(threshold)
     grid = cv2.bitwise_or(horizontal, vertical)
-    bounds = find_table_bounds(horizontal, vertical)
+    bounds = find_table_bounds(threshold, horizontal, vertical)
     answer_table, table_corners = normalize_table(deskewed, bounds)
 
     stem = image_path.stem
