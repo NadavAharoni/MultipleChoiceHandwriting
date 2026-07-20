@@ -3,8 +3,16 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from config import CELL_GAP_MARGIN, CELL_INSET, QUESTIONS_PER_BLOCK, TABLE_ROW_COUNT
-from geometry import run_centers, threshold_image
+from config import (
+    CELL_GAP_MARGIN,
+    CELL_INSET,
+    OUTER_EDGE_BLUR_MARGIN,
+    QUESTIONS_PER_BLOCK,
+    ROW_GAP_MIN_INK,
+    ROW_GAP_SEARCH_PX,
+    TABLE_ROW_COUNT,
+)
+from geometry import extend_for_ink, run_centers, threshold_image
 
 
 @dataclass(frozen=True)
@@ -90,6 +98,69 @@ def _find_block_lines(threshold: np.ndarray, rows: list[int]) -> tuple[list[floa
     return left_block, right_block
 
 
+def _masked_row_ink(threshold: np.ndarray, y: int, left: int, right: int, divider: int) -> int:
+    """Ink count in row ``y`` across a block, ignoring its vertical grid lines."""
+    row = threshold[y, left:right].copy()
+    for line_x in (0, divider - left, right - left - 1):
+        lo, hi = max(0, line_x - 3), min(row.shape[0], line_x + 4)
+        row[lo:hi] = 0
+    return int(np.count_nonzero(row))
+
+
+def _find_row_gap(threshold: np.ndarray, y_center: int, left: int, right: int, divider: int) -> int:
+    """Find the nearest (almost) blank row to ``y_center``, searching outward.
+
+    ``y_center`` itself is a printed row line, so it is never blank; this
+    looks just above and below it for the natural whitespace between one
+    row's handwriting and the next, so a stroke that bleeds slightly across
+    the line still ends up entirely inside one cell. Falls back to the
+    printed line's own position if no blank row is found nearby (handwriting
+    genuinely continuous across rows, with no gap to find - the cut still
+    has to go somewhere, and the line's own position is the least-bad
+    choice).
+    """
+    for offset in range(ROW_GAP_SEARCH_PX + 1):
+        for y in {y_center - offset, y_center + offset}:
+            if _masked_row_ink(threshold, y, left, right, divider) <= ROW_GAP_MIN_INK:
+                return y
+    return y_center
+
+
+def _find_row_boundaries(
+    threshold: np.ndarray, rows: list[int], left: int, right: int, divider: int
+) -> list[int]:
+    """Return the 11 y-positions bounding a block's ten answer rows.
+
+    The outer top/bottom boundaries are pushed outward while ink continues
+    past them, the same technique Iteration 03b uses to grow the whole
+    table's bounds. The nine internal boundaries are instead pulled to the
+    nearest blank row via `_find_row_gap`, since both of their neighbors are
+    cells we also need to keep intact.
+    """
+    ink_ceiling = max(40, (right - left) // 2)
+    # The printed line's own blur bleeds into a few adjacent rows, which
+    # would otherwise immediately look like "a real border" and stop the
+    # walk before it ever reaches genuine overflow further out. Starting a
+    # bit past that known halo avoids mistaking the line for its own
+    # stopping condition.
+    height = threshold.shape[0]
+    top_start = max(0, rows[0] - OUTER_EDGE_BLUR_MARGIN)
+    bottom_start = min(height - 1, rows[-1] + OUTER_EDGE_BLUR_MARGIN)
+    top = extend_for_ink(
+        threshold, 0, (left, right), top_start, -1,
+        ROW_GAP_SEARCH_PX - OUTER_EDGE_BLUR_MARGIN, ink_ceiling, ROW_GAP_MIN_INK,
+    )
+    bottom = extend_for_ink(
+        threshold, 0, (left, right), bottom_start, 1,
+        ROW_GAP_SEARCH_PX - OUTER_EDGE_BLUR_MARGIN, ink_ceiling, ROW_GAP_MIN_INK,
+    )
+
+    boundaries = [top]
+    boundaries.extend(_find_row_gap(threshold, y, left, right, divider) for y in rows[1:-1])
+    boundaries.append(bottom)
+    return boundaries
+
+
 def segment_answer_cells(table_image: np.ndarray) -> list[AnswerCell]:
     """Split a normalized answer-table image into its 20 answer cells.
 
@@ -108,14 +179,18 @@ def segment_answer_cells(table_image: np.ndarray) -> list[AnswerCell]:
 
     cells = []
     for lines, fallback_right, first_question in blocks:
-        left, divider = lines[0], lines[1]
-        right = lines[2] if len(lines) >= 3 else fallback_right
+        left, divider = int(round(lines[0])), int(round(lines[1]))
+        right = int(round(lines[2])) if len(lines) >= 3 else int(round(fallback_right))
+        boundaries = _find_row_boundaries(threshold, rows, left, right, divider)
+
         for index in range(QUESTIONS_PER_BLOCK):
-            top, bottom = rows[index], rows[index + 1]
-            cell_left = int(round(left)) + CELL_INSET
-            cell_top = top + CELL_INSET
-            cell_right = int(round(right)) - CELL_INSET
-            cell_bottom = bottom - CELL_INSET
+            # Row boundaries are already precisely positioned - either the
+            # first blank row found near a printed line, or the point where
+            # ink stopped past the table's outer edge - so, unlike the
+            # column edges below, they need no further inward correction.
+            cell_top, cell_bottom = boundaries[index], boundaries[index + 1]
+            cell_left = left + CELL_INSET
+            cell_right = right - CELL_INSET
             cells.append(
                 AnswerCell(
                     question=first_question + index,
@@ -123,7 +198,7 @@ def segment_answer_cells(table_image: np.ndarray) -> list[AnswerCell]:
                     top=cell_top,
                     right=cell_right,
                     bottom=cell_bottom,
-                    divider=int(round(divider)),
+                    divider=divider,
                     image=table_image[cell_top:cell_bottom, cell_left:cell_right],
                 )
             )

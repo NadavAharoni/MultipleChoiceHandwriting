@@ -55,8 +55,11 @@ These are estimates, not measurements. Treat the totals as directional
 | 14 | Root-caused the bug, rewrote `cells.py` (full-width cell crop + fallback edges), updated `config.py`/`pipeline.py`, updated/added tests, ran pytest and the full 29-scan pipeline | code | ~5,000 | |
 | 15 | Viewed the 2 now-fixed overlays + rebuilt and viewed the 29-exam contact sheet | image | ~3,200 | |
 | 16 | Wrote `docs/04a_full_width_cells.md`, corrected `docs/04_answer_cell_segmentation.md` | code | ~1,600 | |
+| 17 | Diagnosed and fixed row-boundary (vertical) overflow: gap-aware internal boundaries + outer ink-extension, several Bash diagnostic scripts against real scans to calibrate the blank-row threshold and the line-blur-halo margin, plus 3 abandoned statistical approaches for an automatic review-flag before dropping that half of the feature | code | ~16,000 | Largest single chunk so far; most of the cost was calibration/diagnosis, not the final code. |
+| 18 | Viewed the before/after `325573509` cells overlay + rebuilt and viewed the 29-exam contact sheet to confirm no regressions | image | ~2,400 | |
+| 19 | Wrote `docs/04b_row_boundary_overflow.md`, updated `01_project_overview.md` and this log | code | ~1,300 | |
 
-**Running totals:** code ≈ 29,300 · image ≈ 15,200 · discussion ≈ 2,500
+**Running totals:** code ≈ 46,600 · image ≈ 17,600 · discussion ≈ 2,500
 
 ## Early takeaway
 
@@ -67,6 +70,13 @@ handful of representative samples plus one contact sheet), rather than the
 model looking at every one of the 29 scans individually. That gap is
 exactly the effect the project overview's cost theory predicts, though with
 only one iteration logged this isn't yet a solid trend.
+
+Iteration 04b adds a nuance: the most expensive work wasn't writing code or
+viewing images, but *calibrating* a threshold against real data (many small
+Bash round-trips measuring ink counts across the dataset) and exploring
+statistical approaches that ultimately didn't work. That cost is real and
+doesn't show up cleanly in a code-vs-image split - it's a third thing,
+closer to "empirical debugging."
 
 ## Maintenance
 

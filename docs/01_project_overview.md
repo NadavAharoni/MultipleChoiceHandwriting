@@ -137,7 +137,7 @@ Completed:
 - Thresholding.
 - Geometry pipeline.
 - Reliable answer-table localization.
-- Answer cell segmentation (20 cells per scan, see [`04_answer_cell_segmentation.md`](04_answer_cell_segmentation.md)).
+- Answer cell segmentation (20 cells per scan, see [`04_answer_cell_segmentation.md`](04_answer_cell_segmentation.md), [`04a_full_width_cells.md`](04a_full_width_cells.md), [`04b_row_boundary_overflow.md`](04b_row_boundary_overflow.md)). One scan (`325573509_D3241J`) has handwriting too connected to cleanly split per-row and is flagged for manual review rather than solved automatically.
 
 Planned:
 

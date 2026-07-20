@@ -109,7 +109,7 @@ def _select_table_columns(
     return horizontal_left, min(horizontal_right, horizontal_left + expected_width)
 
 
-def _extend_for_ink(
+def extend_for_ink(
     threshold: np.ndarray,
     axis: int,
     span: tuple[int, int],
@@ -224,9 +224,9 @@ def find_table_bounds(
     # growing it risks pulling in unrelated page content.
     row_height = (bottom - top) / (TABLE_ROW_COUNT - 1)
     line_ceiling = max(120, (right - left) // 2)
-    top = _extend_for_ink(threshold, 0, (left, right), top, -1, round(row_height), line_ceiling)
-    bottom = _extend_for_ink(threshold, 0, (left, right), bottom, 1, round(row_height), line_ceiling)
-    left = _extend_for_ink(threshold, 1, (top, bottom), left, -1, round(row_height), line_ceiling)
+    top = extend_for_ink(threshold, 0, (left, right), top, -1, round(row_height), line_ceiling)
+    bottom = extend_for_ink(threshold, 0, (left, right), bottom, 1, round(row_height), line_ceiling)
+    left = extend_for_ink(threshold, 1, (top, bottom), left, -1, round(row_height), line_ceiling)
 
     margin = 3
     return (
