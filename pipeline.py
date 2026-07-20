@@ -13,6 +13,7 @@ def _save_cell_debug_overlay(stem, answer_table, cells, intermediate_dir):
     overlay = answer_table.copy()
     for cell in cells:
         cv2.rectangle(overlay, (cell.left, cell.top), (cell.right, cell.bottom), (0, 0, 255), 2)
+        cv2.line(overlay, (cell.divider, cell.top), (cell.divider, cell.bottom), (0, 200, 255), 1)
         cv2.putText(
             overlay,
             str(cell.question),

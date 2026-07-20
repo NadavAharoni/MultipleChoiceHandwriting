@@ -50,9 +50,13 @@ These are estimates, not measurements. Treat the totals as directional
 | 9 | Built and viewed the 29-exam contact sheet | image | ~1,600 | One image call instead of opening 29 files individually — the token-saving payoff of the contact-sheet idea from the overview doc. |
 | 10 | Wrote `docs/04_answer_cell_segmentation.md`, updated `01_project_overview.md`, `requirements-dev.txt`, committed | code | ~1,800 | |
 | 11 | Discussion: token-reporting request, CLAUDE.md edit, revert, this log's creation | discussion | ~1,800 | |
-| 12 | Re-added the CLAUDE.md logging instruction | discussion | ~250 | |
+| 12 | Housekeeping: re-added CLAUDE.md logging instruction, committed it, then refined the logging policy (squash small entries, keep the log itself uncommitted between real commits) | discussion | ~700 | Squashed from what would have been 3 tiny rows — see policy above. |
+| 13 | Viewed the 2 flagged broken `*_cells.png` overlays (`324974302`, `325573509`) | image | ~1,900 | Confirmed the handwriting-cell box was blank; ink was in the number sub-column instead. |
+| 14 | Root-caused the bug, rewrote `cells.py` (full-width cell crop + fallback edges), updated `config.py`/`pipeline.py`, updated/added tests, ran pytest and the full 29-scan pipeline | code | ~5,000 | |
+| 15 | Viewed the 2 now-fixed overlays + rebuilt and viewed the 29-exam contact sheet | image | ~3,200 | |
+| 16 | Wrote `docs/04a_full_width_cells.md`, corrected `docs/04_answer_cell_segmentation.md` | code | ~1,600 | |
 
-**Running totals:** code ≈ 22,700 · image ≈ 10,100 · discussion ≈ 2,050
+**Running totals:** code ≈ 29,300 · image ≈ 15,200 · discussion ≈ 2,500
 
 ## Early takeaway
 
@@ -66,7 +70,8 @@ only one iteration logged this isn't yet a solid trend.
 
 ## Maintenance
 
-Entries above were reconstructed retrospectively for iteration 04 (rough
-estimates, not live measurements). Going forward, new entries will be added
-per task as work happens. This file is not yet wired into a standing
-CLAUDE.md rule — ask if you'd like it automated.
+Entries 1-11 were reconstructed retrospectively for iteration 04 (rough
+estimates, not live measurements); entries from 12 onward were logged as
+work happened, per the CLAUDE.md rule. Small consecutive steps are squashed
+into one row rather than logged individually. This file is kept uncommitted
+until it can ride along with the next substantive commit.

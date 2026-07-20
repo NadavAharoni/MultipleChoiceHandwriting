@@ -30,6 +30,9 @@ QUESTIONS_PER_BLOCK = 10
 # Shrink each detected cell inward by this many pixels so the crop excludes
 # the printed grid line itself.
 CELL_INSET = 2
+# Fallback gap kept between the left block's right edge and the right
+# block's left edge when the left block's own outer border is not detected.
+CELL_GAP_MARGIN = 15
 
 # Contact sheet defaults, used to tile many debug images for quick review.
 CONTACT_SHEET_COLUMNS = 6

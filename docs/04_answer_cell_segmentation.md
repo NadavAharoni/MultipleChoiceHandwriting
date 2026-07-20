@@ -1,6 +1,6 @@
 # Iteration 04 – Answer Cell Segmentation
 
-**Status:** Complete
+**Status:** Complete (see [`04a_full_width_cells.md`](04a_full_width_cells.md) for a correction)
 
 ## Objective
 
@@ -22,11 +22,12 @@ stage locates them directly rather than assuming fixed pixel coordinates:
   reliability fix: after the perspective warp, printed borders are no longer
   perfectly continuous, while a stray handwriting stroke that happens to
   line up vertically only ever does so in a handful of rows.
-- The outer right edge of the number column is not required: several scans
-  crop it during table detection (acceptable per Iteration 03b), and it
-  is not needed to bound the handwriting cell anyway.
 - The right block (larger x) holds questions 1-10, the left block holds
   questions 11-20, matching the printed form.
+
+Originally this stage cropped only the handwriting sub-column (up to the
+answer/number divider). [`04a_full_width_cells.md`](04a_full_width_cells.md)
+corrects this to crop the whole cell.
 
 See [`cells.py`](../cells.py).
 
@@ -64,7 +65,6 @@ raising an error.
 
 Cell boundaries are the printed grid lines with a small fixed inward inset;
 there is no ink-based overflow extension at the cell level (unlike the
-table-level bounds in Iteration 03b). None of the 29 scans showed clipped
-handwriting in review, so this was not added. If future recognition work
-finds clipped strokes at cell edges, revisit with the same overflow-into-ink
+table-level bounds in Iteration 03b). If future recognition work finds
+clipped strokes at cell edges, revisit with the same overflow-into-ink
 technique used for the outer table bounds.

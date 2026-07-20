@@ -57,10 +57,14 @@ def test_left_block_rows_are_questions_11_to_20_top_to_bottom():
     assert [cell.question for cell in left_block] == list(range(11, 21))
 
 
-def test_cell_bounds_are_between_divider_and_left_edge():
+def test_cell_spans_the_whole_block_not_just_the_handwriting_sub_column():
+    # Some students write next to the printed number instead of in the
+    # blank space reserved for it, so the crop must include both
+    # sub-columns rather than stopping at the divider.
     cells = segment_answer_cells(make_table())
     question_1 = next(cell for cell in cells if cell.question == 1)
-    assert RIGHT_EDGE < question_1.left < question_1.right < RIGHT_DIVIDER
+    assert RIGHT_EDGE < question_1.left < RIGHT_DIVIDER < question_1.right <= RIGHT_RIGHT
+    assert question_1.divider == pytest.approx(RIGHT_DIVIDER, abs=2)
 
 
 def test_cell_image_matches_its_bounds():
@@ -71,9 +75,13 @@ def test_cell_image_matches_its_bounds():
 
 def test_succeeds_when_the_outer_right_edge_is_cropped_off():
     # 03b deliberately allows the outer number-column border to be missing;
-    # only the left edge and the answer/number divider are required.
+    # only the left edge and the answer/number divider are required. The
+    # cell must still extend out to (near) the table's own edge rather than
+    # stopping at the divider.
     cells = segment_answer_cells(make_table(skip_right_edge=True))
     assert [cell.question for cell in cells] == list(range(1, 21))
+    question_1 = next(cell for cell in cells if cell.question == 1)
+    assert question_1.right > RIGHT_DIVIDER + 50
 
 
 def test_ignores_a_handwriting_stroke_that_mimics_a_vertical_line():
@@ -82,6 +90,20 @@ def test_ignores_a_handwriting_stroke_that_mimics_a_vertical_line():
     clean = segment_answer_cells(make_table())
     noisy = segment_answer_cells(make_table(noise_stroke=(300, range(8))))
     assert [(c.left, c.right) for c in clean] == [(c.left, c.right) for c in noisy]
+
+
+def test_captures_ink_written_next_to_the_printed_number_instead_of_in_the_cell():
+    # Regression test for real scans where a student wrote her answer next
+    # to the printed number rather than in the blank handwriting cell.
+    image = make_table()
+    rows = _rows()
+    top, bottom = rows[0] + 5, rows[1] - 5
+    ink_x = RIGHT_DIVIDER + 20  # inside the number sub-column
+    image[top:bottom, ink_x - 3 : ink_x + 3] = 0
+
+    cells = segment_answer_cells(image)
+    question_1 = next(cell for cell in cells if cell.question == 1)
+    assert np.count_nonzero(question_1.image < 128) > 0
 
 
 def test_raises_when_a_row_line_is_missing():

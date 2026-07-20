@@ -3,19 +3,28 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from config import CELL_INSET, QUESTIONS_PER_BLOCK, TABLE_ROW_COUNT
+from config import CELL_GAP_MARGIN, CELL_INSET, QUESTIONS_PER_BLOCK, TABLE_ROW_COUNT
 from geometry import run_centers, threshold_image
 
 
 @dataclass(frozen=True)
 class AnswerCell:
-    """One handwritten answer cell cropped from a normalized answer table."""
+    """One answer cell cropped from a normalized answer table.
+
+    The crop spans the whole cell - both the handwriting sub-column and the
+    printed-number sub-column - because a few students write their answer
+    next to the printed number rather than in the blank space reserved for
+    it.  ``divider`` records the detected boundary between the two
+    sub-columns, for a future stage that wants to mask out the printed
+    number; it is informational only and is not used to bound the crop.
+    """
 
     question: int
     left: int
     top: int
     right: int
     bottom: int
+    divider: int
     image: np.ndarray
 
 
@@ -44,8 +53,8 @@ def _cluster(values: list[float], tolerance: float) -> list[list[float]]:
     return clusters
 
 
-def _find_block_edges(threshold: np.ndarray, rows: list[int]) -> tuple[float, float, float, float]:
-    """Find each block's (left edge, answer/number divider) x-position.
+def _find_block_lines(threshold: np.ndarray, rows: list[int]) -> tuple[list[float], list[float]]:
+    """Find each block's vertical grid lines: left edge, divider, [right edge].
 
     A grid border is detected per row band rather than over the table's full
     height: requiring it to be visible in nearly every row is unambiguous,
@@ -53,7 +62,9 @@ def _find_block_edges(threshold: np.ndarray, rows: list[int]) -> tuple[float, fl
     fragile after the perspective warp softens the printed lines.  A false
     line formed by handwriting ink lining up across a few rows is rejected
     because, unlike a printed border, it will not be present in almost every
-    row band.
+    row band.  The outer right edge is sometimes absent (Iteration 03b
+    allows the table crop to clip the printed-number margin), so each block
+    may yield two or three lines.
     """
     width = threshold.shape[1]
     row_count = len(rows) - 1
@@ -76,26 +87,29 @@ def _find_block_edges(threshold: np.ndarray, rows: list[int]) -> tuple[float, fl
     if len(left_block) < 2 or len(right_block) < 2:
         raise RuntimeError("Could not find both answer-table blocks in the normalized table")
 
-    return left_block[0], left_block[1], right_block[0], right_block[1]
+    return left_block, right_block
 
 
 def segment_answer_cells(table_image: np.ndarray) -> list[AnswerCell]:
-    """Split a normalized answer-table image into its 20 handwriting cells.
+    """Split a normalized answer-table image into its 20 answer cells.
 
     The right block (larger x) holds questions 1-10 and the left block holds
     questions 11-20, matching the printed form's layout.
     """
     threshold = threshold_image(table_image)
+    width = threshold.shape[1]
     rows = _find_row_lines(threshold)
-    left_edge, left_divider, right_edge, right_divider = _find_block_edges(threshold, rows)
+    left_lines, right_lines = _find_block_lines(threshold, rows)
 
     blocks = [
-        (left_edge, left_divider, QUESTIONS_PER_BLOCK + 1),
-        (right_edge, right_divider, 1),
+        (left_lines, right_lines[0] - CELL_GAP_MARGIN, QUESTIONS_PER_BLOCK + 1),
+        (right_lines, width, 1),
     ]
 
     cells = []
-    for left, right, first_question in blocks:
+    for lines, fallback_right, first_question in blocks:
+        left, divider = lines[0], lines[1]
+        right = lines[2] if len(lines) >= 3 else fallback_right
         for index in range(QUESTIONS_PER_BLOCK):
             top, bottom = rows[index], rows[index + 1]
             cell_left = int(round(left)) + CELL_INSET
@@ -109,6 +123,7 @@ def segment_answer_cells(table_image: np.ndarray) -> list[AnswerCell]:
                     top=cell_top,
                     right=cell_right,
                     bottom=cell_bottom,
+                    divider=int(round(divider)),
                     image=table_image[cell_top:cell_bottom, cell_left:cell_right],
                 )
             )
