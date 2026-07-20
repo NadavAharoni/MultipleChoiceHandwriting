@@ -23,3 +23,15 @@ TABLE_HEIGHT = 600
 TABLE_ROW_COUNT = 11
 TABLE_ASPECT_RATIO = 2.08
 
+# Answer-cell segmentation.  Each answer table is split into two blocks of
+# ten questions; the right block (larger x) holds questions 1-10, the left
+# block holds questions 11-20.
+QUESTIONS_PER_BLOCK = 10
+# Shrink each detected cell inward by this many pixels so the crop excludes
+# the printed grid line itself.
+CELL_INSET = 2
+
+# Contact sheet defaults, used to tile many debug images for quick review.
+CONTACT_SHEET_COLUMNS = 6
+CONTACT_SHEET_THUMB_WIDTH = 320
+

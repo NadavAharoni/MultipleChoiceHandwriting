@@ -52,7 +52,7 @@ def extract_grid_lines(threshold: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return horizontal, vertical
 
 
-def _run_centers(values: np.ndarray, bridge_gap: int = 3) -> list[float]:
+def run_centers(values: np.ndarray, bridge_gap: int = 3) -> list[float]:
     """Return the centres of contiguous true runs in a one-dimensional mask.
 
     A grid line that is slightly rotated or thinned by morphology can dip
@@ -151,7 +151,7 @@ def find_table_bounds(
     row_ink = np.count_nonzero(horizontal, axis=1)
     # A table row spans both answer blocks, whereas ordinary printed text does
     # not survive horizontal morphology over this much of the page.
-    candidate_rows = _run_centers(row_ink >= max(120, width // 10))
+    candidate_rows = run_centers(row_ink >= max(120, width // 10))
 
     best_rows: list[float] | None = None
     best_score = -1
@@ -202,7 +202,7 @@ def find_table_bounds(
     # border.  A vertical line extending through most rows is a more reliable
     # source for the true left and right edges.
     column_ink = np.count_nonzero(vertical[top : bottom + 1], axis=0)
-    vertical_columns = _run_centers(column_ink >= (bottom - top + 1) * 0.5)
+    vertical_columns = run_centers(column_ink >= (bottom - top + 1) * 0.5)
     left, right = _select_table_columns(left, right, vertical_columns, bottom - top + 1)
 
     # If the selected left edge is a full answer-cell width before the first
@@ -279,7 +279,7 @@ def normalize_table(image: np.ndarray, bounds: tuple[int, int, int, int]) -> tup
     return cv2.warpPerspective(image, transform, (TABLE_WIDTH, TABLE_HEIGHT)), source
 
 
-def process_image(image_path, output_dir, intermediate_dir):
+def locate_answer_table(image_path, output_dir, intermediate_dir) -> tuple[str, np.ndarray]:
     """Locate, deskew, and normalize the answer table from one scanned page."""
     image_path = Path(image_path)
     image = read_image(image_path)
@@ -305,3 +305,4 @@ def process_image(image_path, output_dir, intermediate_dir):
         save_image(intermediate_dir / f"{stem}_table_detection.png", overlay)
 
     save_image(output_dir / f"{stem}_answer_table.png", answer_table)
+    return stem, answer_table
