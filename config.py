@@ -85,3 +85,25 @@ HANDWRITING_CONNECTIVITY = 4
 # this question.
 HANDWRITING_MULTI_ROW_FLAG_RATIO = 1.3
 
+# A leftover fragment of an incompletely-removed grid line (divider or
+# block edge) is thin and tall and sits exactly on that scan's own known
+# line position - unlike a real stroke, which either isn't that thin,
+# isn't that tall, or isn't centred exactly there. Found via clustering
+# diagnostics: these fragments are large enough in area to survive a
+# generic small-noise filter, so they need this shape+position check
+# specifically. See docs/06_symbol_clustering.md.
+LINE_REMNANT_MAX_WIDTH = 6
+LINE_REMNANT_MIN_HEIGHT = 20
+LINE_REMNANT_POSITION_TOLERANCE = 5
+
+# Symbol clustering (docs/06_symbol_clustering.md). A handwriting output can
+# still contain a small leftover printed-number fragment (Iteration 05's
+# accepted limitation) alongside the real ink; requiring this much area
+# reliably keeps only substantial strokes; calibrated against the real
+# dataset, where noise fragments topped out well under 150px.
+CLUSTER_MIN_COMPONENT_AREA = 150
+CLUSTER_CANVAS_SIZE = 40
+# Number of shape clusters. Not "the 5 letters" - clusters split further by
+# handwriting style (see docs/06), so this is intentionally more than 5.
+CLUSTER_COUNT = 6
+

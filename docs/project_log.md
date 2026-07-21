@@ -66,8 +66,14 @@ These are estimates, not measurements. Treat the totals as directional
 | 25 | 2026-07-21 00:45 | Diagnosed severe over-flagging (70/580 cells) on the first real-data run, root-caused it to padding+8-connectivity letting adjacent rows' ink merge once the grid barrier was removed, swept parameters against the real dataset, recalibrated | code | ~7,500 | Same "empirical debugging" cost pattern as 04b. |
 | 26 | 2026-07-21 00:50 | Viewed the flagged exam's isolated handwriting ink, re-ran full pipeline, viewed the cells contact sheet + a sample handwriting-output sheet to confirm 1/580 flagged (the already-known `325573509`) | image | ~3,600 | |
 | 27 | 2026-07-21 00:55 | Wrote `docs/05_handwriting_extraction.md`, updated `01_project_overview.md` and this log | code | ~1,600 | |
+| 28 | 2026-07-21 01:20 | Saved a feedback memory (show whole tables, not cell crops); explored symbol-splitting feasibility (viewed a whole-table connected-component overlay, ran corpus-wide gap/area distribution checks) and found it unreliable - multi-stroke letters and residual noise both defeat a simple gap threshold | code | ~5,500 | 1 image + several Bash checks. |
+| 29 | 2026-07-21 01:35 | Discussion: recommended clustering over further symbol-splitting or a CNN, given the data size and lack of labels; user agreed to try clustering | discussion | ~900 | |
+| 30 | 2026-07-21 02:00 | First clustering attempt (raw pixel features) produced one incoherent dominant cluster; diagnosed the root cause as a real bug in `handwriting.py` (output unconditionally padded to the full cell width) plus underestimated residual grid-line fragment size | code | ~8,000 | Several Bash checks + 2 gallery images viewed. |
+| 31 | 2026-07-21 02:15 | Fixed `handwriting.py` (shape+position line-remnant filter, removed the bounds-union bug), added 4 regression tests, re-validated against all 29 scans, re-ran clustering with an area filter - dramatically improved, coherent clusters | code | ~7,000 | Viewed the new gallery (1 image). |
+| 32 | 2026-07-21 02:40 | Investigated a human-spotted misclassification (3 ג's in a cluster otherwise dominated by another letter): corrected a file-identification mistake (column counted left-to-right vs. the user's right-to-left), then confirmed 2 of 3 ranked as distance outliers | code | ~4,500 | 4 individual crops viewed to verify identity - the one place this session cell-level crops were the right call, not a whole table (verifying specific named cells, not reviewing an exam). |
+| 33 | 2026-07-21 03:05 | Formalized `clustering.py` + `cluster_symbols.py` CLI + `tests/test_clustering.py` (6 cases), wrote `docs/06_symbol_clustering.md`, updated `01_project_overview.md` and this log, installed `scikit-learn` | code | ~6,500 | |
 
-**Running totals:** code ≈ 65,300 · image ≈ 26,000 · discussion ≈ 3,450
+**Running totals:** code ≈ 98,800 · image ≈ 26,000 · discussion ≈ 4,350
 
 ## Early takeaway
 
@@ -93,6 +99,17 @@ round of parameter sweeps against real data. Two iterations in a row where
 the expensive step was "run against real data, discover the real
 distribution doesn't match the synthetic-test intuition, recalibrate" - this
 looks like a recurring cost category for this project, not a one-off.
+
+Iteration 06 is a fourth instance, but with a twist worth naming separately:
+clustering itself wasn't the expensive part - a real bug sitting unnoticed in
+already-shipped Iteration 05 code was. Attempting a *new* feature (clustering)
+against real output is what exposed a defect in the *previous* feature. Also
+notable: the one moment a human-provided example (the 3 misclassified ג's)
+was worth more than another round of automated diagnosis - it's the only
+concrete ground-truth signal this project has had access to so far, and it
+directly validated (with a caveat: 2 of 3, not 3 of 3) whether the
+confidence measure is trustworthy, something no amount of internal
+consistency-checking could confirm on its own.
 
 ## Maintenance
 

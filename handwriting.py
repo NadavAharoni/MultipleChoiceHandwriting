@@ -9,6 +9,9 @@ from config import (
     HANDWRITING_CONNECTIVITY,
     HANDWRITING_MULTI_ROW_FLAG_RATIO,
     HANDWRITING_ROW_PAD_PX,
+    LINE_REMNANT_MAX_WIDTH,
+    LINE_REMNANT_MIN_HEIGHT,
+    LINE_REMNANT_POSITION_TOLERANCE,
     TABLE_HEIGHT,
     TABLE_ROW_COUNT,
 )
@@ -41,6 +44,27 @@ def _padded_region(cell: AnswerCell, shape: tuple[int, int]) -> tuple[int, int, 
     return top, left, bottom, right
 
 
+def _is_line_remnant(bounds: tuple[int, int, int, int], line_positions: list[float]) -> bool:
+    """Is this component a sliver of an incompletely-removed grid line?
+
+    The printed-content template (`template.py`) is frequency-based across
+    the whole corpus, so a line that sits at a slightly different position
+    on one particular scan can survive it as a small leftover fragment.
+    Unlike the template, `cells.py` gives us this scan's *exact* divider
+    and block-edge positions, so a fragment can be identified precisely:
+    thin, tall, and centred on one of those known lines. A real stroke
+    would either not be that thin, not be that tall, or not sit exactly on
+    the line - so this shouldn't catch genuine handwriting that happens to
+    be positioned near a boundary (e.g. Iteration 04a's number-column ink).
+    """
+    y0, x0, y1, x1 = bounds
+    width, height = x1 - x0 + 1, y1 - y0 + 1
+    if width > LINE_REMNANT_MAX_WIDTH or height < LINE_REMNANT_MIN_HEIGHT:
+        return False
+    center_x = (x0 + x1) / 2
+    return any(abs(center_x - position) <= LINE_REMNANT_POSITION_TOLERANCE for position in line_positions)
+
+
 def extract_cell_handwriting(
     table_image: np.ndarray, template: np.ndarray, cell: AnswerCell
 ) -> Handwriting:
@@ -60,6 +84,9 @@ def extract_cell_handwriting(
     region = handwriting_ink[top:bottom, left:right]
     component_count, labels = cv2.connectedComponents(region, connectivity=HANDWRITING_CONNECTIVITY)
 
+    # Known exact line positions on this scan, in region-local coordinates.
+    line_positions = [x - left for x in (cell.left, cell.divider, cell.right)]
+
     kept_mask = np.zeros_like(region)
     kept_bounds = None
     spans_multiple_rows = False
@@ -70,8 +97,11 @@ def extract_cell_handwriting(
         if not (cell.top <= centroid_y < cell.bottom and cell.left <= centroid_x < cell.right):
             continue
 
-        kept_mask[labels == label] = 255
         bounds = (rows.min(), columns.min(), rows.max(), columns.max())
+        if _is_line_remnant(bounds, line_positions):
+            continue
+
+        kept_mask[labels == label] = 255
         kept_bounds = bounds if kept_bounds is None else (
             min(kept_bounds[0], bounds[0]),
             min(kept_bounds[1], bounds[1]),
@@ -81,18 +111,13 @@ def extract_cell_handwriting(
         if bounds[2] - bounds[0] > NOMINAL_ROW_HEIGHT * HANDWRITING_MULTI_ROW_FLAG_RATIO:
             spans_multiple_rows = True
 
-    # A blank cell has no components to bound; fall back to its own tight
-    # area rather than producing a zero-sized image.
-    tight_bounds = (cell.top - top, cell.left - left, cell.bottom - top - 1, cell.right - left - 1)
+    # A blank cell (nothing kept) has no components to bound; fall back to
+    # its own tight area rather than producing a zero-sized image. When
+    # there IS kept content, use only its own bounds - unioning with the
+    # tight cell area here would pad every result out to the full cell
+    # width regardless of how little of it is actually ink.
     if kept_bounds is None:
-        kept_bounds = tight_bounds
-    else:
-        kept_bounds = (
-            min(kept_bounds[0], tight_bounds[0]),
-            min(kept_bounds[1], tight_bounds[1]),
-            max(kept_bounds[2], tight_bounds[2]),
-            max(kept_bounds[3], tight_bounds[3]),
-        )
+        kept_bounds = (cell.top - top, cell.left - left, cell.bottom - top - 1, cell.right - left - 1)
 
     y0, x0, y1, x1 = kept_bounds
     canvas = np.full((y1 - y0 + 1, x1 - x0 + 1), 255, dtype=np.uint8)

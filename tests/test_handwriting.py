@@ -53,10 +53,46 @@ def test_reattaches_component_that_overflows_the_cell():
     image[145:168, 100:120] = 0  # 23 rows tall, last 7 of them past bottom=160
 
     result = extract_cell_handwriting(image, template, cell)
-    # A shape assertion alone would pass even if the tail were clipped,
-    # since the canvas is always at least as tall as the cell's own tight
-    # bounds (60px here) - checking the actual ink count catches that.
     assert np.count_nonzero(result.image < 128) >= 23 * 20 - 40
+
+
+def test_output_is_cropped_to_the_ink_not_padded_to_the_full_cell():
+    # Regression test: kept_bounds must not be unioned with the cell's full
+    # tight area when there IS real content, or every output ends up as
+    # wide as the cell regardless of how little of it has ink - this is
+    # what made every clustering feature computed from these outputs
+    # dominated by blank space (see docs/06_symbol_clustering.md).
+    image = _blank_image()
+    template = _blank_template()
+    cell = _cell(1, top=100, left=20, bottom=160, right=280)  # 260px wide
+    image[120:140, 100:120] = 0  # a 20x20 blob, far from every edge
+
+    result = extract_cell_handwriting(image, template, cell)
+    assert result.image.shape[1] < 100  # nowhere near the cell's 260px width
+
+
+def test_ignores_a_thin_tall_fragment_on_the_known_divider_line():
+    # A leftover sliver of an incompletely-removed divider line: thin,
+    # tall, and centred exactly on the cell's own known divider position.
+    image = _blank_image()
+    template = _blank_template()
+    cell = _cell(1, top=50, left=20, bottom=170, right=280)  # divider at 150
+    image[60:150, 148:152] = 0  # 4px wide, 90px tall, centred on divider
+
+    result = extract_cell_handwriting(image, template, cell)
+    assert np.count_nonzero(result.image < 128) == 0
+
+
+def test_keeps_a_stroke_that_happens_to_cross_the_divider():
+    # A real letter crossing the divider (Iteration 04a) must not be
+    # mistaken for a line remnant: it's much wider than a line sliver.
+    image = _blank_image()
+    template = _blank_template()
+    cell = _cell(1, top=50, left=20, bottom=170, right=280)  # divider at 150
+    image[100:120, 130:170] = 0  # 40px wide, straddling the divider
+
+    result = extract_cell_handwriting(image, template, cell)
+    assert np.count_nonzero(result.image < 128) > 0
 
 
 def test_does_not_claim_a_component_centred_in_the_neighbor():
